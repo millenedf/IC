@@ -1,0 +1,241 @@
+# colocar tudo para contas reais (do mundo real)
+# calcular tudo no mundo real e converter apenas na hora de plotar
+# converter para o pygame apenas no final
+
+'''importações'''
+import pygame
+from pygame.locals import *
+import math
+
+# inicialização do Pygame
+pygame.init()
+
+'''funções'''
+
+def volumes_agua(alturas_agua, L): ## já testei
+    # valores reais (cm)
+    # vamos utilizar que todos os copos possuem o mesmo formato
+    # vamos calcular o volume para um copo de base circular e corpo retangular, ou seja, um copo cilíndrico
+    # vamos tomar o raio da base como L/2
+    # aqui utlizaremos a fórmula elementar de área da base vezes altura, para casos futuros podemos utilizar algum método de integração numérica (como Simpson), para fazer esse cálculo por meio de outra função
+    raio = L/2
+    N = len(alturas_agua)
+    volumes = [0]*N
+    area_base = math.pi*(raio**2)
+    for i in range(N):
+        volumes[i] = (area_base)*alturas_agua[i] # calcula todos os volumes dos copos
+    return volumes
+
+def calcular_centro_de_massa(angulo, distangulo, alturas_agua, L, H, N, massa_copo, massa_roda): ## já testei
+    # medidas do mundo real
+    volumes = volumes_agua(alturas_agua, L)
+    massa_total = sum(volumes) + massa_copo*N + massa_roda
+    centro_x, centro_y = 0, 0 # a cada cálculo de centro de massa, ele "limpa" essas variáveis para não ocorrer nenhuma intercorrência
+    
+    for i in range(N):
+        # Calcula a posição x e y do copo
+        x = r * math.cos(angulo + i * distangulo)
+        y = r * math.sin(angulo + i * distangulo)
+        
+        # Calcula as coordenadas do centro de massa de cada copo (real)
+        x_i = x
+        y_i = ((y - H + alturas_agua[i]/2)*volumes[i] + (y - H/2)*massa_copo)/(volumes[i] + massa_copo)
+        
+        # Atualiza a soma ponderada de x e y pelas massas
+        centro_x += x_i * (volumes[i] + massa_copo)
+        centro_y += y_i * (volumes[i] + massa_copo)
+      
+    centro_x = centro_x / massa_total
+    centro_y = centro_y / massa_total
+    
+    return centro_x, centro_y
+
+def converter_medidas(medida_real, lado_real, lado):
+    # redimensiona medidas reais de forma proporcional à tela
+    return medida_real*(lado/lado_real)
+
+def converter_coordenada(x_real, y_real, lado_real, lado): ## já testei
+    # converte pontos em pontos
+    # as medidas reais deverão ser passadas em cm
+    # vamos usar proporções para redimensionar a tela
+    a = lado/lado_real
+    b = lado/2
+    x = x_real*a + b
+    y = -y_real*a + b
+    return x, y
+
+def raiocentrodemassa(x_c, y_c): 
+    r_c = math.sqrt((x_c)**2 +(y_c)**2)
+    return r_c
+
+def funcao_w(w, centro_x, centro_y, passo): ## já testei
+    # medidas reais
+    # velocidade linear
+    p = raiocentrodemassa(centro_x, centro_y)
+    g = 980 # [cm]/[s^2]
+    w += passo*((-g*centro_x)/(p**2) - w*atrito)
+    return w
+
+def funcao_theta(angulo, w, passo):
+    # ângulo
+    angulo += w*passo
+    return angulo
+
+def funcao_w_linha(w, c, N, massa_roda, massa_copo, alturas_agua, L, centro_x, centro_y, r):
+    # calcular os torques
+    ## torque do peso (vamos chamar de torque_p)
+    massa_agua_lista = volumes_agua(alturas_agua, L) # relação de 1 para 1 pelo GSI
+    massa_agua = sum(massa_agua_lista)
+    P = (massa_roda + N*massa_copo + massa_agua)*980 # gravidade
+    if P < 0:
+        P = - P
+    r_c = raiocentrodemassa(centro_x, centro_y)
+    torque_p = -P*centro_x # pode simplificar? sim (o r_c foi cancelado aqui)
+    ## torque do atrito (vamos chamar de torque_a)
+    torque_a = - c*w
+        # c é constante e w é omega (já calculado antes, não recalcular de novo para não dar problema)
+    torque_total = torque_p + torque_a
+    
+    # calcular as inércias
+    ## inércia da roda
+    I_roda = massa_roda*(r**2)
+    ## inércia dos copos
+    I_copos = (N*massa_copo + massa_agua)*(r**2)
+    ## inércia total (I)
+    I = I_roda + I_copos
+    
+    # calcular w'
+    w_linha = torque_total/I
+    
+    return w_linha
+
+def alterador_alturas_agua(N, alturas_agua, vazao_entrada, vazao_saida, L, H): # função delta
+    
+    area_base = math.pi*((L/2)**2)
+        
+    for i in range(N):
+        # calcula a posição x e y de cada copo
+        x = r * math.cos(angulo + i * distangulo)
+        y = r * math.sin(angulo + i * distangulo)
+            
+        if x < L/2 and x > - L/2 and y > 0:
+            alturas_agua[i] += ((vazao_entrada)/area_base)*H
+            
+        alturas_agua[i] -= (vazao_saida/area_base)*H
+
+        if alturas_agua[i] > H:
+            alturas_agua[i] = H
+        elif alturas_agua[i] < 0:
+            alturas_agua[i] = 0
+    
+    return alturas_agua
+
+def w_mais_passo(w, w_linha, passo):
+    w += w_linha*passo
+    return w
+
+'''configurações (tela, tamanhos, angulos, velocidades e etc)'''
+
+# configurações da tela
+lado = 600 # lado da tela do programa (em pixels)
+r = 40 # raio da roda (em cm)
+H = 10 # altura do copo (em cm)
+L = 7 # largura da base do copo (será o nosso diâmetro) (em cm)
+N = 5 # número de copos na roda
+passo = 0.00001 # passo do tempo (é fixo) (s)
+w = 500 # velocidade linear inicial
+vazao_entrada = 0.02 # volume (cm3)
+vazao_saida = 0.002 # volume (cm3)
+massa_copo = 50 # massa do copo vazio (g)
+massa_roda = 500 # massa aproximada de uma roda de alumínio (g)
+lado_real = 100 # lado real da tela (cm)
+c = 10
+atrito = 5
+
+# inicialização do ângulo
+angulo = 0 # ângulo inicial da roda
+distangulo = (2 * math.pi) / N  # distância angular entre cada copo
+
+# configuração da tela
+tela = pygame.display.set_mode((lado, lado))
+pygame.display.set_caption("Roda Caótica") # título
+
+'''atribuições (alturas das águas, centro de massa)'''
+# lista para armazenar as alturas de água em cada copo
+alturas_agua = [0.9*H]*N # a altura inicial de todos os copos é 0 (essa variável vai ser diferente do volume de cada copo - vai ter uma função para isso depois)
+print(alturas_agua)
+# lista para armazenar o caminho do centro de massa
+caminho_centro_de_massa = []
+
+'''início da animação'''
+
+# loop principal
+while True:
+    # preenche a tela com cor preta
+    tela.fill((0, 0, 0))
+    
+    # verifica eventos (funcionamento da animação)
+    for event in pygame.event.get():
+        if event.type == QUIT:
+            pygame.quit()
+            exit()
+
+# volumes
+    # altera o volume de cada copo de acordo com a sua posição
+    
+    area_base = math.pi*((L/2)**2)
+    
+    for i in range(N):
+        # calcula a posição x e y de cada copo
+        x = r * math.cos(angulo + i * distangulo)
+        y = r * math.sin(angulo + i * distangulo)
+        
+        if x < L/2 and x > - L/2:
+            alturas_agua[i] += ((vazao_entrada)/area_base)*H
+        
+        alturas_agua[i] -= (vazao_saida/area_base)*H
+
+        if alturas_agua[i] > H:
+            alturas_agua[i] = H
+        elif alturas_agua[i] < 0:
+            alturas_agua[i] = 0
+            
+# calcula o centro de massa
+    centro_x, centro_y = calcular_centro_de_massa(angulo, distangulo, alturas_agua, L, H, N, massa_copo, massa_roda)
+
+# atualiza o ângulo para girar a roda na direção correta
+    valores_antigos = [angulo, w, alturas_agua]
+    angulo = funcao_theta(valores_antigos[0], valores_antigos[1], passo) # é o theta(t + passo)
+    w_linha = funcao_w_linha(valores_antigos[1], c, N, massa_roda, massa_copo, valores_antigos[2], L, centro_x, centro_y, r) # é o w'(t)
+    w = funcao_w(valores_antigos[1], centro_x, centro_y, passo) # é o w(t)
+ 
+
+# conversões
+    r_tela = converter_medidas(r, lado_real, lado)
+    L_tela = converter_medidas(L, lado_real, lado)
+    H_tela = converter_medidas(H, lado_real, lado)
+    
+    alturas_convertido = [0]*N
+    
+    for i in range(N):
+        alturas_convertido[i] = converter_medidas(alturas_agua[i], lado_real, lado)
+# desenhos
+
+# desenha a roda (é um círculo sobre o outro)
+    pygame.draw.circle(tela, (255, 255, 255), (lado / 2, lado / 2), r_tela)
+    pygame.draw.circle(tela, (0, 0, 0), (lado / 2, lado / 2), 0.99 * r_tela)
+
+    for i in range(N):
+        # calcula a posição x e y de cada copo
+        x = r * math.cos(angulo + i * distangulo)
+        y = r * math.sin(angulo + i * distangulo)
+        X, Y = converter_coordenada(x, y, lado_real, lado)
+        
+        # desenha o copo
+        pygame.draw.rect(tela, (0, 0, 255), (X - L_tela/2, Y, L_tela, H_tela))
+        
+        # desenha a água dentro do copo
+        pygame.draw.rect(tela, (0, 255, 255), (X - L_tela/2, Y + H_tela - alturas_convertido[i], L_tela, alturas_convertido[i]))
+
+# atualiza a tela
+    pygame.display.update()
