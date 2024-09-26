@@ -1,0 +1,225 @@
+# Importações
+import pygame
+from pygame.locals import *
+import math
+
+# Inicialização do Pygame
+pygame.init()
+
+# Funções
+
+def volumes_agua(alturas_agua, L):
+    raio = L/2
+    N = len(alturas_agua)
+    volumes = [0]*N
+    area_base = math.pi*(raio**2)
+    for i in range(N):
+        volumes[i] = area_base * alturas_agua[i]
+    return volumes
+
+def calcular_centro_de_massa(angulo, distangulo, alturas_agua, L, H, N, massa_copo, massa_roda, r):
+    volumes = volumes_agua(alturas_agua, L)
+    massa_total = sum(volumes) + massa_copo * N + massa_roda
+    centro_x, centro_y = 0, 0
+
+    for i in range(N):
+        x = r * math.cos(angulo + i * distangulo)
+        y = r * math.sin(angulo + i * distangulo)
+
+        x_i = x
+        y_i = ((y - H + alturas_agua[i]/2)*volumes[i] + (y - H/2)*massa_copo) / (volumes[i] + massa_copo)
+
+        centro_x += x_i * (volumes[i] + massa_copo)
+        centro_y += y_i * (volumes[i] + massa_copo)
+
+    centro_x = centro_x / massa_total
+    centro_y = centro_y / massa_total
+
+    return centro_x, centro_y
+
+def converter_medidas(medida_real, lado_real, lado):
+    return medida_real * (lado / lado_real)
+
+def converter_coordenada(x_real, y_real, lado_real, lado):
+    a = lado / lado_real
+    b = lado / 2
+    x = x_real * a + b
+    y = -y_real * a + b
+    return x, y
+
+def raiocentrodemassa(x_c, y_c):
+    r_c = math.sqrt((x_c)**2 + (y_c)**2)
+    return r_c
+
+def sistema_roda(estado, parametros):
+    """
+    Função que define o sistema de EDOs para a roda caótica de Malkus.
+    Retorna as derivadas de theta e omega e atualiza as alturas de água.
+    """
+    angulo, w, alturas_agua = estado  # Descompacta o estado do sistema
+    
+    # Parâmetros descompactados
+    c, N, massa_roda, massa_copo, L, H, r, distangulo, q, e, k, C, atrito = parametros
+    
+    # Calcula o centro de massa
+    centro_x, centro_y = calcular_centro_de_massa(angulo, distangulo, alturas_agua, L, H, N, massa_copo, massa_roda, r)
+    
+    # Calcula o raio ao centro de massa
+    p = raiocentrodemassa(centro_x, centro_y)
+    
+    # Constante gravitacional
+    g = 980  # cm/s^2
+    
+    # Derivada de omega (aceleração angular)
+    # Calcula os torques
+    massa_agua_lista = volumes_agua(alturas_agua, L)  # massa de água em cada copo
+    massa_agua = sum(massa_agua_lista)
+    P = (massa_roda + N * massa_copo + massa_agua) * g
+    torque_p = -P * centro_x
+    torque_a = -c * w
+    torque_total = torque_p + torque_a
+    
+    # Inércias
+    I_roda = massa_roda * (r**2)
+    I_copos = (N * massa_copo + massa_agua) * (r**2)
+    I = I_roda + I_copos
+    
+    # Aceleração angular
+    w_linha = torque_total / I - w * atrito
+    
+    # Derivada de theta (velocidade angular)
+    theta_linha = w
+    
+    # Atualiza as alturas de água
+    alturas_agua = alterador_alturas_agua(N, alturas_agua, L, H, q, e, k, C, angulo, distangulo, r)
+    
+    return [theta_linha, w_linha, alturas_agua]
+
+def runge_kutta_roda(estado, parametros, passo):
+    """
+    Método de Runge-Kutta de quarta ordem para integrar o sistema da roda caótica.
+    """
+    # k1
+    k1 = sistema_roda(estado, parametros)
+    
+    # k2
+    estado_k2 = [estado[i] + 0.5 * passo * k1[i] if i < 2 else k1[i] for i in range(len(estado))]
+    k2 = sistema_roda(estado_k2, parametros)
+    
+    # k3
+    estado_k3 = [estado[i] + 0.5 * passo * k2[i] if i < 2 else k2[i] for i in range(len(estado))]
+    k3 = sistema_roda(estado_k3, parametros)
+    
+    # k4
+    estado_k4 = [estado[i] + passo * k3[i] if i < 2 else k3[i] for i in range(len(estado))]
+    k4 = sistema_roda(estado_k4, parametros)
+    
+    # Atualiza o estado
+    novo_estado = [0]*len(estado)
+    for i in range(len(estado)):
+        if i < 2:
+            novo_estado[i] = estado[i] + (passo / 6.0) * (k1[i] + 2 * k2[i] + 2 * k3[i] + k4[i])
+        else:
+            novo_estado[i] = k4[i]  # Atualiza as alturas de água com o último cálculo
+    
+    return novo_estado
+
+def alterador_alturas_agua(N, alturas_agua, L, H, q, e, k, C, angulo, distangulo, r):    
+    novas_alturas = alturas_agua.copy()
+    for i in range(N):
+        x = r * math.cos(angulo + i * distangulo)
+        
+        delta_h = q * e**(- (x**k) / (L/2)) - C * (alturas_agua[i]**(1/2))
+        novas_alturas[i] += delta_h
+        
+        if novas_alturas[i] > H:
+            novas_alturas[i] = H
+        elif novas_alturas[i] < 0:
+            novas_alturas[i] = 0
+        
+    return novas_alturas
+
+# Configurações (tela, tamanhos, ângulos, velocidades e etc)
+
+# Configurações da tela
+lado = 600  # Lado da tela do programa (em pixels)
+r = 40  # Raio da roda (em cm)
+H = 10  # Altura do copo (em cm)
+L = 7  # Largura da base do copo (diâmetro) (em cm)
+N = 9  # Número de copos na roda
+passo = 0.01  # Passo do tempo (s)
+vazao_entrada = 0.015  # Volume (cm^3)
+vazao_saida = 0.002  # Volume (cm^3)
+massa_copo = 50  # Massa do copo vazio (g)
+massa_roda = 500  # Massa aproximada de uma roda de alumínio (g)
+lado_real = 100  # Lado real da tela (cm)
+c = 10
+atrito = 0.2
+q = 0.06
+euler = 2.71828182
+k = 2
+C = 0.001
+
+# Inicialização do ângulo
+angulo = 0  # Ângulo inicial da roda
+distangulo = (2 * math.pi) / N  # Distância angular entre cada copo
+
+# Configuração da tela
+tela = pygame.display.set_mode((lado, lado))
+pygame.display.set_caption("Roda Caótica")  # Título
+
+# Atribuições (alturas das águas, centro de massa)
+# Lista para armazenar as alturas de água em cada copo
+alturas_agua = [0.9 * H] * N  # Altura inicial de todos os copos
+
+# Estado inicial
+estado = [angulo, 10.0, alturas_agua]  # [ângulo, velocidade angular, alturas de água]
+
+# Parâmetros para o sistema
+parametros = [c, N, massa_roda, massa_copo, L, H, r, distangulo, q, euler, k, C, atrito]
+
+# Início da animação
+
+# Loop principal
+
+rodando = True
+while rodando:
+    for event in pygame.event.get():
+        if event.type == QUIT:
+            rodando = False
+    
+    # Atualiza o estado usando Runge-Kutta
+    estado = runge_kutta_roda(estado, parametros, passo)
+    angulo, w, alturas_agua = estado
+
+    # Limpa a tela
+    tela.fill((0, 0, 0))
+
+    # Conversões
+    r_tela = converter_medidas(r, lado_real, lado)
+    L_tela = converter_medidas(L, lado_real, lado)
+    H_tela = converter_medidas(H, lado_real, lado)
+    
+    alturas_convertido = [converter_medidas(h, lado_real, lado) for h in alturas_agua]
+
+    # Desenha a roda (círculo externo)
+    pygame.draw.circle(tela, (255, 255, 255), (lado / 2, lado / 2), r_tela, 2)
+
+    # Desenha os copos
+    for i in range(N):
+        # Calcula a posição x e y de cada copo
+        x = r * math.cos(angulo + i * distangulo)
+        y = r * math.sin(angulo + i * distangulo)
+        X, Y = converter_coordenada(x, y, lado_real, lado)
+        
+        # Desenha o copo (retângulo)
+        pygame.draw.rect(tela, (200, 200, 200), (X - L_tela / 2, Y, L_tela, H_tela), 2)
+        
+        # Desenha a água dentro do copo
+        altura_agua_tela = alturas_convertido[i]
+        pygame.draw.rect(tela, (0, 0, 255), (X - L_tela / 2, Y + H_tela - altura_agua_tela, L_tela, altura_agua_tela))
+
+    # Atualiza a tela
+    pygame.display.flip()
+    
+pygame.quit()
