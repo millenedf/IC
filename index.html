@@ -1,0 +1,139 @@
+<!DOCTYPE html>
+<html lang="en">
+<head>
+    <meta charset="UTF-8">
+    <meta name="viewport" content="width=device-width, initial-scale=1.0">
+    <meta name="description" content="Explorando a Roda de Malkus e Sistemas Dinâmicos">
+    <title>Roda de Malkus e Sistemas Dinâmicos</title>
+    <style>
+        body {
+            font-family: Arial, sans-serif;
+            line-height: 1.6;
+            margin: 0;
+            padding: 0;
+            background-color: #f4f4f9;
+            color: #333;
+        }
+        header {
+            background: #00509e;
+            color: #fff;
+            padding: 1rem 0;
+            text-align: center;
+        }
+        nav {
+            background: #003f7f;
+            color: #fff;
+            padding: 0.5rem;
+            display: flex;
+            justify-content: center;
+        }
+        nav a {
+            color: #fff;
+            margin: 0 1rem;
+            text-decoration: none;
+        }
+        nav a:hover {
+            text-decoration: underline;
+        }
+        .container {
+            padding: 2rem;
+            max-width: 800px;
+            margin: auto;
+            background: #fff;
+            box-shadow: 0 2px 10px rgba(0, 0, 0, 0.1);
+            border-radius: 8px;
+        }
+        footer {
+            text-align: center;
+            padding: 1rem 0;
+            background: #00509e;
+            color: #fff;
+            margin-top: 2rem;
+        }
+        .code {
+            background: #f4f4f4;
+            padding: 1rem;
+            border-left: 4px solid #00509e;
+            font-family: "Courier New", Courier, monospace;
+            overflow-x: auto;
+        }
+        .image {
+            text-align: center;
+            margin: 2rem 0;
+        }
+        .image img {
+            max-width: 100%;
+            height: auto;
+            border-radius: 8px;
+        }
+    </style>
+</head>
+<body>
+    <header>
+        <h1>Roda de Malkus e Sistemas Dinâmicos</h1>
+    </header>
+
+    <nav>
+        <a href="#introducao">Introdução</a>
+        <a href="#roda-de-malkus">Roda de Malkus</a>
+        <a href="#sistemas-dinamicos">Sistemas Dinâmicos</a>
+        <a href="#simulacao">Simulação</a>
+    </nav>
+
+    <div class="container">
+        <section id="introducao">
+            <h2>Introdução</h2>
+            <p>Bem-vindo! Esta página explora conceitos fascinantes de sistemas dinâmicos, com foco na roda de Malkus, um sistema caótico que ajuda a entender como padrões complexos emergem de equações aparentemente simples.</p>
+        </section>
+
+        <section id="roda-de-malkus">
+            <h2>O que é a Roda de Malkus?</h2>
+            <p>A roda de Malkus é um dispositivo mecânico que ilustra comportamentos caóticos. Ela consiste em copos presos a uma roda rotativa, com água fluindo entre eles. O movimento é descrito por um sistema de equações diferenciais que modela o equilíbrio e a dinâmica da água nos copos.</p>
+            <div class="image">
+                <img src="https://via.placeholder.com/800x400" alt="Roda de Malkus">
+                <p>Figura: Representação da roda de Malkus.</p>
+            </div>
+        </section>
+
+        <section id="sistemas-dinamicos">
+            <h2>Sistemas Dinâmicos</h2>
+            <p>Sistemas dinâmicos são modelos matemáticos que descrevem como o estado de um sistema evolui ao longo do tempo. Exemplos incluem o sistema de Lorenz e a roda de Malkus, que exibem comportamentos caóticos sensíveis às condições iniciais.</p>
+            <div class="code">
+<pre>
+// Exemplo de equações do sistema de Lorenz
+sigma = 10;
+rho = 28;
+beta = 8/3;
+
+x' = sigma * (y - x);
+y' = x * (rho - z) - y;
+z' = x * y - beta * z;
+</pre>
+            </div>
+        </section>
+
+        <section id="simulacao">
+            <h2>Simulação Computacional</h2>
+            <p>Utilizamos métodos numéricos, como o método de Runge-Kutta de quarta ordem, para resolver as equações diferenciais da roda de Malkus. Abaixo está um exemplo de código em Python para simulação:</p>
+            <div class="code">
+<pre>
+import numpy as np
+from scipy.integrate import solve_ivp
+
+def roda_malkus(t, y, L, k):
+    theta, omega = y
+    dtheta_dt = omega
+    domega_dt = -np.exp(- (theta / (L/2)) ** k) * omega
+    return [dtheta_dt, domega_dt]
+
+sol = solve_ivp(roda_malkus, [0, 50], [0.1, 0.0], args=(1.0, 4))
+</pre>
+            </div>
+        </section>
+    </div>
+
+    <footer>
+        <p>Desenvolvido por Millene Duarte Ferreira | <a href="https://github.com">GitHub</a></p>
+    </footer>
+</body>
+</html>
